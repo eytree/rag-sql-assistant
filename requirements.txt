@@ -1,0 +1,20 @@
+# Core dependencies
+llama-cpp-python==0.2.19        # Local LLM integration
+sentence-transformers==2.2.2    # For creating embeddings
+faiss-cpu==1.7.4                # Vector search library
+numpy==1.24.3                   # Required for numerical operations
+pydantic==2.4.2                 # Data validation and settings management
+
+# Database
+SQLAlchemy==2.0.23              # SQL toolkit and ORM
+
+# Utilities
+rich==13.5.2                    # Better terminal output
+python-dotenv==1.0.0            # Environment variable management
+typer==0.9.0                    # CLI interface
+tqdm==4.66.1                    # Progress bars
+
+# Optional but recommended for development
+black==23.9.1                   # Code formatting
+pylint==2.17.5                  # Linting
+pytest==7.4.2                   # Testing
