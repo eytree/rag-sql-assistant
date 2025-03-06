@@ -1,0 +1,521 @@
+{
+    "database_name": "trading_db",
+    "description": "A database for tracking trading activity, portfolios, and market data",
+    "tables": [
+      {
+        "name": "users",
+        "description": "Users who can place trades and own portfolios",
+        "columns": [
+          {
+            "name": "user_id",
+            "type": "INTEGER",
+            "constraints": "PRIMARY KEY",
+            "description": "Unique identifier for each user"
+          },
+          {
+            "name": "username",
+            "type": "TEXT",
+            "constraints": "UNIQUE NOT NULL",
+            "description": "Unique login name for the user"
+          },
+          {
+            "name": "email",
+            "type": "TEXT",
+            "constraints": "UNIQUE NOT NULL",
+            "description": "User's email address"
+          },
+          {
+            "name": "full_name",
+            "type": "TEXT",
+            "constraints": "NOT NULL",
+            "description": "User's full name"
+          },
+          {
+            "name": "created_at",
+            "type": "TIMESTAMP",
+            "constraints": "DEFAULT CURRENT_TIMESTAMP",
+            "description": "When the user account was created"
+          },
+          {
+            "name": "account_type",
+            "type": "TEXT",
+            "constraints": "CHECK(account_type IN ('retail', 'institutional', 'admin'))",
+            "description": "Type of trading account (retail, institutional, admin)"
+          }
+        ],
+        "indexes": [
+          {
+            "name": "idx_users_username",
+            "columns": ["username"],
+            "unique": true
+          },
+          {
+            "name": "idx_users_email",
+            "columns": ["email"],
+            "unique": true
+          }
+        ],
+        "sample_queries": [
+          "SELECT * FROM users WHERE account_type = 'institutional'",
+          "SELECT user_id, username FROM users WHERE created_at > '2023-01-01'"
+        ]
+      },
+      {
+        "name": "instruments",
+        "description": "Financial instruments that can be traded",
+        "columns": [
+          {
+            "name": "instrument_id",
+            "type": "INTEGER",
+            "constraints": "PRIMARY KEY",
+            "description": "Unique identifier for each instrument"
+          },
+          {
+            "name": "symbol",
+            "type": "TEXT",
+            "constraints": "UNIQUE NOT NULL",
+            "description": "Trading symbol for the instrument (e.g., AAPL, MSFT)"
+          },
+          {
+            "name": "name",
+            "type": "TEXT",
+            "constraints": "NOT NULL",
+            "description": "Full name of the instrument (e.g., Apple Inc.)"
+          },
+          {
+            "name": "instrument_type",
+            "type": "TEXT",
+            "constraints": "NOT NULL",
+            "description": "Type of instrument (stock, bond, etf, crypto, etc.)"
+          },
+          {
+            "name": "exchange",
+            "type": "TEXT",
+            "constraints": "NOT NULL",
+            "description": "Exchange where the instrument is traded (NYSE, NASDAQ, etc.)"
+          },
+          {
+            "name": "sector",
+            "type": "TEXT",
+            "constraints": "",
+            "description": "Industry sector (Technology, Healthcare, etc.)"
+          },
+          {
+            "name": "country",
+            "type": "TEXT",
+            "constraints": "",
+            "description": "Country where the instrument is primarily traded"
+          },
+          {
+            "name": "is_active",
+            "type": "BOOLEAN",
+            "constraints": "DEFAULT TRUE",
+            "description": "Whether the instrument is currently active for trading"
+          }
+        ],
+        "indexes": [
+          {
+            "name": "idx_instruments_symbol",
+            "columns": ["symbol"],
+            "unique": true
+          },
+          {
+            "name": "idx_instruments_type",
+            "columns": ["instrument_type"],
+            "unique": false
+          },
+          {
+            "name": "idx_instruments_sector",
+            "columns": ["sector"],
+            "unique": false
+          }
+        ],
+        "sample_queries": [
+          "SELECT * FROM instruments WHERE sector = 'Technology' AND is_active = TRUE",
+          "SELECT symbol, name FROM instruments WHERE instrument_type = 'stock' AND country = 'US'"
+        ]
+      },
+      {
+        "name": "portfolios",
+        "description": "Portfolios owned by users",
+        "columns": [
+          {
+            "name": "portfolio_id",
+            "type": "INTEGER",
+            "constraints": "PRIMARY KEY",
+            "description": "Unique identifier for each portfolio"
+          },
+          {
+            "name": "user_id",
+            "type": "INTEGER",
+            "constraints": "NOT NULL REFERENCES users(user_id)",
+            "description": "User who owns this portfolio"
+          },
+          {
+            "name": "name",
+            "type": "TEXT",
+            "constraints": "NOT NULL",
+            "description": "Name of the portfolio"
+          },
+          {
+            "name": "description",
+            "type": "TEXT",
+            "constraints": "",
+            "description": "Description of the portfolio's investment strategy"
+          },
+          {
+            "name": "created_at",
+            "type": "TIMESTAMP",
+            "constraints": "DEFAULT CURRENT_TIMESTAMP",
+            "description": "When the portfolio was created"
+          },
+          {
+            "name": "portfolio_type",
+            "type": "TEXT",
+            "constraints": "CHECK(portfolio_type IN ('aggressive', 'balanced', 'conservative'))",
+            "description": "Risk profile of the portfolio (aggressive, balanced, conservative)"
+          }
+        ],
+        "indexes": [
+          {
+            "name": "idx_portfolios_user_id",
+            "columns": ["user_id"],
+            "unique": false
+          }
+        ],
+        "sample_queries": [
+          "SELECT * FROM portfolios WHERE user_id = 123",
+          "SELECT portfolio_id, name FROM portfolios WHERE portfolio_type = 'aggressive'"
+        ]
+      },
+      {
+        "name": "trades",
+        "description": "Individual trade transactions",
+        "columns": [
+          {
+            "name": "trade_id",
+            "type": "INTEGER",
+            "constraints": "PRIMARY KEY",
+            "description": "Unique identifier for each trade"
+          },
+          {
+            "name": "user_id",
+            "type": "INTEGER",
+            "constraints": "NOT NULL REFERENCES users(user_id)",
+            "description": "User who made the trade"
+          },
+          {
+            "name": "portfolio_id",
+            "type": "INTEGER",
+            "constraints": "REFERENCES portfolios(portfolio_id)",
+            "description": "Portfolio associated with the trade (can be NULL for user-level trades)"
+          },
+          {
+            "name": "instrument_id",
+            "type": "INTEGER",
+            "constraints": "NOT NULL REFERENCES instruments(instrument_id)",
+            "description": "Instrument that was traded"
+          },
+          {
+            "name": "trade_type",
+            "type": "TEXT",
+            "constraints": "NOT NULL CHECK(trade_type IN ('buy', 'sell'))",
+            "description": "Whether the trade was a buy or sell"
+          },
+          {
+            "name": "quantity",
+            "type": "INTEGER",
+            "constraints": "NOT NULL",
+            "description": "Number of units traded"
+          },
+          {
+            "name": "price",
+            "type": "DECIMAL(20,6)",
+            "constraints": "NOT NULL",
+            "description": "Price per unit in the trade"
+          },
+          {
+            "name": "total_amount",
+            "type": "DECIMAL(20,6)",
+            "constraints": "NOT NULL",
+            "description": "Total monetary value of the trade (quantity * price)"
+          },
+          {
+            "name": "trade_date",
+            "type": "TIMESTAMP",
+            "constraints": "NOT NULL",
+            "description": "Date and time when the trade was executed"
+          },
+          {
+            "name": "settlement_date",
+            "type": "DATE",
+            "constraints": "",
+            "description": "Date when the trade settles"
+          },
+          {
+            "name": "commission_fee",
+            "type": "DECIMAL(10,2)",
+            "constraints": "DEFAULT 0.0",
+            "description": "Fee charged for executing the trade"
+          },
+          {
+            "name": "status",
+            "type": "TEXT",
+            "constraints": "DEFAULT 'completed' CHECK(status IN ('pending', 'completed', 'cancelled', 'failed'))",
+            "description": "Current status of the trade"
+          }
+        ],
+        "indexes": [
+          {
+            "name": "idx_trades_user_id",
+            "columns": ["user_id"],
+            "unique": false
+          },
+          {
+            "name": "idx_trades_instrument_id",
+            "columns": ["instrument_id"],
+            "unique": false
+          },
+          {
+            "name": "idx_trades_portfolio_id",
+            "columns": ["portfolio_id"],
+            "unique": false
+          },
+          {
+            "name": "idx_trades_trade_date",
+            "columns": ["trade_date"],
+            "unique": false
+          }
+        ],
+        "sample_queries": [
+          "SELECT * FROM trades WHERE user_id = 123 AND trade_date > '2023-01-01'",
+          "SELECT trade_id, instrument_id, quantity, price FROM trades WHERE trade_type = 'buy' AND total_amount > 10000"
+        ]
+      },
+      {
+        "name": "price_history",
+        "description": "Historical price data for instruments",
+        "columns": [
+          {
+            "name": "price_id",
+            "type": "INTEGER",
+            "constraints": "PRIMARY KEY",
+            "description": "Unique identifier for each price record"
+          },
+          {
+            "name": "instrument_id",
+            "type": "INTEGER",
+            "constraints": "NOT NULL REFERENCES instruments(instrument_id)",
+            "description": "Instrument this price data is for"
+          },
+          {
+            "name": "date",
+            "type": "DATE",
+            "constraints": "NOT NULL",
+            "description": "Date of the price data"
+          },
+          {
+            "name": "open_price",
+            "type": "DECIMAL(20,6)",
+            "constraints": "",
+            "description": "Opening price for the day"
+          },
+          {
+            "name": "close_price",
+            "type": "DECIMAL(20,6)",
+            "constraints": "NOT NULL",
+            "description": "Closing price for the day"
+          },
+          {
+            "name": "high_price",
+            "type": "DECIMAL(20,6)",
+            "constraints": "",
+            "description": "Highest price for the day"
+          },
+          {
+            "name": "low_price",
+            "type": "DECIMAL(20,6)",
+            "constraints": "",
+            "description": "Lowest price for the day"
+          },
+          {
+            "name": "volume",
+            "type": "BIGINT",
+            "constraints": "",
+            "description": "Trading volume for the day"
+          }
+        ],
+        "indexes": [
+          {
+            "name": "idx_price_history_instrument_id",
+            "columns": ["instrument_id"],
+            "unique": false
+          },
+          {
+            "name": "idx_price_history_date",
+            "columns": ["date"],
+            "unique": false
+          },
+          {
+            "name": "idx_price_history_instrument_date",
+            "columns": ["instrument_id", "date"],
+            "unique": true
+          }
+        ],
+        "sample_queries": [
+          "SELECT date, close_price FROM price_history WHERE instrument_id = 456 ORDER BY date DESC LIMIT 30",
+          "SELECT AVG(close_price) FROM price_history WHERE instrument_id = 456 AND date BETWEEN '2023-01-01' AND '2023-01-31'"
+        ]
+      },
+      {
+        "name": "portfolio_holdings",
+        "description": "Current holdings in each portfolio",
+        "columns": [
+          {
+            "name": "holding_id",
+            "type": "INTEGER",
+            "constraints": "PRIMARY KEY",
+            "description": "Unique identifier for each holding record"
+          },
+          {
+            "name": "portfolio_id",
+            "type": "INTEGER",
+            "constraints": "NOT NULL REFERENCES portfolios(portfolio_id)",
+            "description": "Portfolio containing this holding"
+          },
+          {
+            "name": "instrument_id",
+            "type": "INTEGER",
+            "constraints": "NOT NULL REFERENCES instruments(instrument_id)",
+            "description": "Instrument held in the portfolio"
+          },
+          {
+            "name": "quantity",
+            "type": "INTEGER",
+            "constraints": "NOT NULL",
+            "description": "Number of units held"
+          },
+          {
+            "name": "average_cost",
+            "type": "DECIMAL(20,6)",
+            "constraints": "NOT NULL",
+            "description": "Average cost basis per unit"
+          },
+          {
+            "name": "last_updated",
+            "type": "TIMESTAMP",
+            "constraints": "DEFAULT CURRENT_TIMESTAMP",
+            "description": "When this holding was last updated"
+          }
+        ],
+        "indexes": [
+          {
+            "name": "idx_holdings_portfolio_id",
+            "columns": ["portfolio_id"],
+            "unique": false
+          },
+          {
+            "name": "idx_holdings_instrument_id",
+            "columns": ["instrument_id"],
+            "unique": false
+          },
+          {
+            "name": "idx_holdings_portfolio_instrument",
+            "columns": ["portfolio_id", "instrument_id"],
+            "unique": true
+          }
+        ],
+        "sample_queries": [
+          "SELECT h.*, i.symbol, i.name FROM portfolio_holdings h JOIN instruments i ON h.instrument_id = i.instrument_id WHERE h.portfolio_id = 789",
+          "SELECT SUM(h.quantity * p.close_price) AS total_value FROM portfolio_holdings h JOIN price_history p ON h.instrument_id = p.instrument_id WHERE h.portfolio_id = 789 AND p.date = '2023-07-31'"
+        ]
+      }
+    ],
+    "relationships": [
+      {
+        "from_table": "portfolios",
+        "from_column": "user_id",
+        "to_table": "users",
+        "to_column": "user_id",
+        "relationship": "many-to-one",
+        "description": "Each user can have multiple portfolios"
+      },
+      {
+        "from_table": "trades",
+        "from_column": "user_id",
+        "to_table": "users",
+        "to_column": "user_id",
+        "relationship": "many-to-one",
+        "description": "Each user can make multiple trades"
+      },
+      {
+        "from_table": "trades",
+        "from_column": "portfolio_id",
+        "to_table": "portfolios",
+        "to_column": "portfolio_id",
+        "relationship": "many-to-one",
+        "description": "Each portfolio can have multiple trades"
+      },
+      {
+        "from_table": "trades",
+        "from_column": "instrument_id",
+        "to_table": "instruments",
+        "to_column": "instrument_id",
+        "relationship": "many-to-one",
+        "description": "Each instrument can be traded multiple times"
+      },
+      {
+        "from_table": "price_history",
+        "from_column": "instrument_id",
+        "to_table": "instruments",
+        "to_column": "instrument_id",
+        "relationship": "many-to-one",
+        "description": "Each instrument has multiple price history records"
+      },
+      {
+        "from_table": "portfolio_holdings",
+        "from_column": "portfolio_id",
+        "to_table": "portfolios",
+        "to_column": "portfolio_id",
+        "relationship": "many-to-one",
+        "description": "Each portfolio can have multiple holdings"
+      },
+      {
+        "from_table": "portfolio_holdings",
+        "from_column": "instrument_id",
+        "to_table": "instruments",
+        "to_column": "instrument_id",
+        "relationship": "many-to-one",
+        "description": "Each instrument can be held in multiple portfolios"
+      }
+    ],
+    "common_queries": [
+      {
+        "name": "recent_trades_by_user",
+        "description": "Get recent trades for a specific user",
+        "sql": "SELECT t.trade_id, t.trade_date, t.trade_type, i.symbol, i.name, t.quantity, t.price, t.total_amount FROM trades t JOIN instruments i ON t.instrument_id = i.instrument_id WHERE t.user_id = ? ORDER BY t.trade_date DESC LIMIT 10"
+      },
+      {
+        "name": "portfolio_performance",
+        "description": "Calculate portfolio performance over a time period",
+        "sql": "WITH start_values AS (SELECT h.instrument_id, h.quantity, p1.close_price AS start_price FROM portfolio_holdings h JOIN price_history p1 ON h.instrument_id = p1.instrument_id WHERE h.portfolio_id = ? AND p1.date = ?), end_values AS (SELECT h.instrument_id, h.quantity, p2.close_price AS end_price FROM portfolio_holdings h JOIN price_history p2 ON h.instrument_id = p2.instrument_id WHERE h.portfolio_id = ? AND p2.date = ?) SELECT SUM(sv.quantity * sv.start_price) AS start_value, SUM(ev.quantity * ev.end_price) AS end_value, (SUM(ev.quantity * ev.end_price) - SUM(sv.quantity * sv.start_price)) / SUM(sv.quantity * sv.start_price) * 100 AS percent_change FROM start_values sv JOIN end_values ev ON sv.instrument_id = ev.instrument_id"
+      },
+      {
+        "name": "sector_allocation",
+        "description": "Calculate sector allocation for a portfolio",
+        "sql": "SELECT i.sector, SUM(h.quantity * p.close_price) AS sector_value, SUM(h.quantity * p.close_price) / (SELECT SUM(h2.quantity * p2.close_price) FROM portfolio_holdings h2 JOIN instruments i2 ON h2.instrument_id = i2.instrument_id JOIN price_history p2 ON h2.instrument_id = p2.instrument_id WHERE h2.portfolio_id = ? AND p2.date = (SELECT MAX(date) FROM price_history)) * 100 AS percentage FROM portfolio_holdings h JOIN instruments i ON h.instrument_id = i.instrument_id JOIN price_history p ON h.instrument_id = p.instrument_id WHERE h.portfolio_id = ? AND p.date = (SELECT MAX(date) FROM price_history) GROUP BY i.sector ORDER BY sector_value DESC"
+      },
+      {
+        "name": "price_change",
+        "description": "Calculate price change for instruments over time",
+        "sql": "SELECT i.symbol, i.name, ph1.close_price AS start_price, ph2.close_price AS end_price, (ph2.close_price - ph1.close_price) / ph1.close_price * 100 AS percent_change FROM instruments i JOIN price_history ph1 ON i.instrument_id = ph1.instrument_id JOIN price_history ph2 ON i.instrument_id = ph2.instrument_id WHERE i.sector = ? AND ph1.date = ? AND ph2.date = ? ORDER BY percent_change DESC"
+      }
+    ],
+    "performance_notes": [
+      "The trades table can grow very large over time and should be considered for partitioning by date",
+      "Queries joining trades and price_history can be slow without proper indexing",
+      "Consider denormalizing some frequently accessed data for better performance",
+      "The idx_price_history_instrument_date composite index is critical for performance",
+      "Queries calculating portfolio performance across many instruments may benefit from materialized views"
+    ]
+  }
