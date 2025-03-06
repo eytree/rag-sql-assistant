@@ -35,7 +35,7 @@ def create_tables(conn, schema_data):
         columns = []
         for column in table["columns"]:
             column_def = f"{column['name']} {column['type']}"
-            if column["constraints"]:
+            if "constraints" in column and column["constraints"]:
                 column_def += f" {column['constraints']}"
             columns.append(column_def)
         
@@ -356,3 +356,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+    
