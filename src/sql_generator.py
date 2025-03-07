@@ -9,8 +9,7 @@ SQL queries from natural language questions, implementing the full
 RAG pipeline.
 """
 
-from typing import Dict, List, Tuple, Optional, Any, Union
-import re
+from typing import Dict, Any
 import sqlite3
 import logging
 

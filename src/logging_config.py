@@ -6,7 +6,7 @@ Centralized logging configuration for the RAG-powered SQL Assistant.
 """
 
 import logging
-from typing import List, Optional, Set
+from typing import List, Set
 from enum import Enum
 
 class LogLevel(str, Enum):

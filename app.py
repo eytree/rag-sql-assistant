@@ -11,11 +11,8 @@ system will generate SQL queries with explanations and performance insights.
 
 import os
 import sys
-import time
 from pathlib import Path
 from typing import Optional
-import sqlite3
-import json
 
 import typer
 from rich.console import Console
@@ -119,24 +116,33 @@ def main(log_level: LogLevel = typer.Option(
 )):
     """Initialize the application with optional logging level."""
     setup_logging(log_level)
-    # If no command is provided, run interactive mode
-    interactive()
+    
+    # Only initialize components if we're not just showing help
+    if len(sys.argv) > 1 and sys.argv[1] not in ["--help", "-h"]:
+        check_database()
+        # If no command is provided, run interactive mode
+        interactive()
+    else:
+        # Just show help and exit
+        app()
 
 @app.command()
 def generate(query: Optional[str] = typer.Argument(None, help="Natural language query")):
     """Generate an SQL query from natural language."""
-    check_database()
-    
     # Get query from argument or prompt
     if not query:
         query = Prompt.ask("[bold]Enter your question about the trading database[/bold]")
     
-    with console.status("[bold green]Processing...[/bold green]"):
-        # Initialize SQL generator
-        sql_generator = get_sql_generator()
+    # Initialize SQL generator
+    sql_generator = get_sql_generator()
+    
+    # Show progress for each step
+    with console.status("[bold green]Initializing...[/bold green]") as status:
+        def update_status(message: str):
+            status.update(f"[bold green]{message}[/bold green]")
         
-        # Generate SQL
-        result = sql_generator.generate_sql(query)
+        # Generate SQL with progress updates
+        result = sql_generator.generate_sql(query, status_callback=update_status)
     
     # Display result
     display_sql_result(result)
@@ -158,8 +164,6 @@ def generate(query: Optional[str] = typer.Argument(None, help="Natural language 
 @app.command()
 def interactive():
     """Start an interactive session with the SQL Assistant."""
-    check_database()
-    
     console.print("[bold green]RAG-powered SQL Assistant[/bold green]")
     console.print("Ask questions in natural language about the trading database.")
     console.print("Type [bold]'exit'[/bold] or [bold]'quit'[/bold] to end the session.\n")
@@ -198,28 +202,28 @@ def interactive():
 
 @app.command()
 def info():
-    """Display information about the database schema."""
-    check_database()
-    
+    """Display information about the database schema and available tables."""
+    # Initialize database connection
     db = get_database()
     
-    console.print("[bold green]Trading Database Schema Information[/bold green]\n")
-    
+    # Get all tables
     tables = db.get_all_tables()
     
-    # Display tables
-    table = Table(title="Database Tables")
-    table.add_column("Table Name", style="cyan")
-    table.add_column("Description", style="green")
-    table.add_column("Columns", style="magenta")
+    # Create table for display
+    table = Table(show_header=True, header_style="bold magenta")
+    table.add_column("Table Name")
+    table.add_column("Description")
+    table.add_column("Columns")
     
     for table_info in tables:
+        columns = [col["name"] for col in table_info["columns"]]
         table.add_row(
             table_info["name"],
             table_info.get("description", ""),
-            str(len(table_info["columns"]))
+            ", ".join(columns)
         )
     
+    console.print("[bold]Database Schema:[/bold]")
     console.print(table)
     
     # Ask if user wants to see detailed info for a specific table
@@ -286,12 +290,6 @@ def info():
                         console.print(f"→ {rel['relationship']}: {rel['from_table']}.{rel['from_column']} to {rel['to_table']}.{rel['to_column']}")
                     else:
                         console.print(f"← {rel['relationship']}: {rel['to_table']}.{rel['to_column']} from {rel['from_table']}.{rel['from_column']}")
-
-# Make interactive mode the default command
-@app.command()
-def default():
-    """Default command that runs interactive mode."""
-    interactive()
 
 if __name__ == "__main__":
     try:

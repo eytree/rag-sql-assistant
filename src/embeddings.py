@@ -96,6 +96,7 @@ class EmbeddingManager:
         self.index = faiss.IndexFlatL2(embedding_dimension)
         
         # Add the embeddings to the index
+        import numpy as np
         self.index.add(embeddings.astype(np.float32))
     
     def generate_schema_embeddings(self, schema_data: Dict[str, Any]):
@@ -105,9 +106,6 @@ class EmbeddingManager:
         Args:
             schema_data: Database schema information
         """
-        # Import here to avoid loading numpy and tqdm on startup
-        import numpy as np
-        from tqdm import tqdm
         
         self._load_model()
         

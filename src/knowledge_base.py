@@ -12,7 +12,6 @@ intermediary between raw schema data and the LLM module.
 import json
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional, Any, Union
-import re
 import logging
 
 from .database import get_database
