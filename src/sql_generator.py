@@ -40,12 +40,13 @@ class SQLGenerator:
         self.knowledge_base.setup()
         logger.debug("SQL Generator initialized successfully")
     
-    def generate_sql(self, query: str) -> Dict[str, Any]:
+    def generate_sql(self, query: str, status_callback=None) -> Dict[str, Any]:
         """
         Generate an SQL query from a natural language question using RAG.
         
         Args:
             query: Natural language question
+            status_callback: Optional callback function to update status
             
         Returns:
             Dictionary with generated SQL, explanation, and performance info
@@ -53,17 +54,26 @@ class SQLGenerator:
         logger.info("Generating SQL for query: %s", query)
         
         # Step 1: Retrieve relevant context from knowledge base
-        logger.info("Step 1: Retrieving context")
+        msg = "Step 1: Retrieving context from knowledge base..."
+        if status_callback:
+            status_callback(msg)
+        logger.info(msg)
         context = self.knowledge_base.retrieve_context(query)
         logger.debug("Retrieved context: %s", context)
         
         # Step 2: Format context for prompt
-        logger.info("Step 2: Formatting context")
+        msg = "Step 2: Formatting context for prompt..."
+        if status_callback:
+            status_callback(msg)
+        logger.info(msg)
         formatted_context = self.knowledge_base.format_context_for_prompt(context)
         logger.debug("Formatted context: %s", formatted_context)
         
         # Step 3: Generate SQL using LLM with RAG context
-        logger.info("Step 3: Generating SQL with LLM")
+        msg = "Step 3: Generating SQL with language model..."
+        if status_callback:
+            status_callback(msg)
+        logger.info(msg)
         result = self.llm.generate_sql(query, formatted_context)
         logger.debug("LLM result: %s", result)
         
@@ -73,7 +83,10 @@ class SQLGenerator:
         
         if sql_query:
             try:
-                logger.info("Step 4: Analyzing query performance")
+                msg = "Step 4: Analyzing query performance..."
+                if status_callback:
+                    status_callback(msg)
+                logger.info(msg)
                 performance_info = self.analyze_query(sql_query)
                 logger.debug("Performance analysis: %s", performance_info)
             except Exception as e:
@@ -87,7 +100,10 @@ class SQLGenerator:
             "performance_analysis": performance_info
         })
         
-        logger.info("SQL generation completed")
+        msg = "SQL generation completed"
+        if status_callback:
+            status_callback(msg)
+        logger.info(msg)
         return result
     
     def _summarize_context(self, context: Dict[str, Any]) -> Dict[str, Any]:
