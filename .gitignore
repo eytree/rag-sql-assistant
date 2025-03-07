@@ -27,6 +27,9 @@ var/
 data/trading.db
 data/embeddings/
 
+# LLM model files, ignore everything except .gitignore
+models/
+!.gitignore
 
 # Logs
 logs/
