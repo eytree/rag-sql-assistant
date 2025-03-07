@@ -9,14 +9,9 @@ for database schema elements, enabling semantic search for relevant
 context during RAG retrieval.
 """
 
-import os
 import json
-from typing import Dict, List, Tuple, Optional, Any, Union
+from typing import Dict, List, Any
 from pathlib import Path
-import numpy as np
-from tqdm import tqdm
-from sentence_transformers import SentenceTransformer
-import faiss
 import logging
 
 from .logging_config import register_logger
@@ -61,11 +56,16 @@ class EmbeddingManager:
         """Load the embedding model if not already loaded"""
         if self.model is None:
             print(f"Loading embedding model: {self.model_name}")
+            # Import here to avoid loading torch on startup
+            from sentence_transformers import SentenceTransformer
             self.model = SentenceTransformer(self.model_name)
     
     def _load_embeddings(self):
         """Load existing embeddings from disk"""
         print(f"Loading existing embeddings from {self.embedding_file}")
+        
+        # Import here to avoid loading numpy on startup
+        import numpy as np
         
         # Load the embeddings
         loaded = np.load(self.embedding_file)
@@ -80,13 +80,16 @@ class EmbeddingManager:
         # Create FAISS index
         self._create_index(embeddings)
     
-    def _create_index(self, embeddings: np.ndarray):
+    def _create_index(self, embeddings):
         """
         Create a FAISS index for fast similarity search.
         
         Args:
             embeddings: Numpy array of embeddings
         """
+        # Import here to avoid loading numpy and faiss on startup
+        import faiss
+        
         embedding_dimension = embeddings.shape[1]
         
         # Create a flat index - simple but effective for small to medium datasets
@@ -102,6 +105,10 @@ class EmbeddingManager:
         Args:
             schema_data: Database schema information
         """
+        # Import here to avoid loading numpy and tqdm on startup
+        import numpy as np
+        from tqdm import tqdm
+        
         self._load_model()
         
         # Extract relevant text elements from the schema
@@ -189,13 +196,16 @@ class EmbeddingManager:
         
         print(f"Generated and saved embeddings for {len(texts)} schema elements")
     
-    def _save_embeddings(self, embeddings: np.ndarray):
+    def _save_embeddings(self, embeddings):
         """
         Save embeddings and mapping to disk.
         
         Args:
             embeddings: Numpy array of embeddings
         """
+        # Import here to avoid loading numpy on startup
+        import numpy as np
+        
         # Save embeddings
         np.savez(
             self.embedding_file, 
@@ -223,6 +233,9 @@ class EmbeddingManager:
         """
         if self.index is None:
             raise ValueError("No embeddings available. Please generate embeddings first.")
+        
+        # Import here to avoid loading numpy on startup
+        import numpy as np
         
         # Load model if needed
         self._load_model()
