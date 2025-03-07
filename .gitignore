@@ -27,10 +27,6 @@ var/
 data/trading.db
 data/embeddings/
 
-# LLM model files
-models/
-*.gguf
-*.bin
 
 # Logs
 logs/
