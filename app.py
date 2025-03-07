@@ -34,7 +34,7 @@ from src.database import get_database
 from src.logging_config import LogLevel, setup_logging
 
 # Create Typer app
-app = typer.Typer(help="RAG-powered SQL Assistant")
+app = typer.Typer(help="RAG-powered SQL Assistant", invoke_without_command=True)
 console = Console()
 
 def check_database():
@@ -111,7 +111,7 @@ def display_query_results(data):
     
     console.print(table)
 
-@app.callback()
+@app.callback(invoke_without_command=True)
 def main(log_level: LogLevel = typer.Option(
     LogLevel.NONE,
     "--log-level", "-l",
@@ -119,6 +119,8 @@ def main(log_level: LogLevel = typer.Option(
 )):
     """Initialize the application with optional logging level."""
     setup_logging(log_level)
+    # If no command is provided, run interactive mode
+    interactive()
 
 @app.command()
 def generate(query: Optional[str] = typer.Argument(None, help="Natural language query")):
@@ -284,6 +286,12 @@ def info():
                         console.print(f"→ {rel['relationship']}: {rel['from_table']}.{rel['from_column']} to {rel['to_table']}.{rel['to_column']}")
                     else:
                         console.print(f"← {rel['relationship']}: {rel['to_table']}.{rel['to_column']} from {rel['from_table']}.{rel['from_column']}")
+
+# Make interactive mode the default command
+@app.command()
+def default():
+    """Default command that runs interactive mode."""
+    interactive()
 
 if __name__ == "__main__":
     try:
