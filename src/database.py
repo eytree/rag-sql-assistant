@@ -11,8 +11,16 @@ including connection management, query execution, and schema information retriev
 import json
 import os
 import sqlite3
+import logging
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional, Any, Union
+
+from .logging_config import register_logger
+
+# Register this module's logger
+LOGGER_NAME = 'database'
+register_logger(LOGGER_NAME)
+logger = logging.getLogger(LOGGER_NAME)
 
 # Database path
 DB_PATH = Path("data/trading.db")
@@ -30,32 +38,41 @@ class Database:
         self.db_path = db_path
         self.conn = None
         self.cursor = None
+        logger.info(f"Initializing Database with path: {db_path}")
         
         # Load schema information once
         schema_path = Path("data/schema.json")
         if schema_path.exists():
+            logger.info("Loading schema from %s", schema_path)
             with open(schema_path, "r") as f:
                 self.schema = json.load(f)
+            logger.debug("Schema loaded successfully")
         else:
+            logger.warning("Schema file not found at %s", schema_path)
             self.schema = None
     
     def connect(self) -> None:
         """Establish database connection"""
         if not self.conn:
             if not self.db_path.exists():
+                logger.error(f"Database file not found: {self.db_path}")
                 raise FileNotFoundError(f"Database file not found: {self.db_path}")
             
+            logger.info("Establishing new database connection")
             self.conn = sqlite3.connect(self.db_path)
             # Configure connection to return rows as dictionaries
             self.conn.row_factory = sqlite3.Row
             self.cursor = self.conn.cursor()
+            logger.debug("Database connection established successfully")
     
     def close(self) -> None:
         """Close database connection"""
         if self.conn:
+            logger.info("Closing database connection")
             self.conn.close()
             self.conn = None
             self.cursor = None
+            logger.debug("Database connection closed")
     
     def execute_query(self, query: str, params: Tuple = None) -> List[Dict[str, Any]]:
         """
@@ -69,23 +86,43 @@ class Database:
             List of dictionaries representing the query results
         """
         try:
+            logger.info("Executing query: %s", query)
+            if params:
+                logger.debug("Query parameters: %s", params)
+            
             self.connect()
             
+            # Split the query into statements and take the last one
+            statements = [s.strip() for s in query.split(';') if s.strip()]
+            if not statements:
+                logger.warning("No valid SQL statements found in query")
+                return []
+            
+            # Use the last statement (ignoring comments)
+            actual_query = statements[-1]
+            logger.debug("Using query: %s", actual_query)
+            
             if params:
-                self.cursor.execute(query, params)
+                self.cursor.execute(actual_query, params)
             else:
-                self.cursor.execute(query)
+                self.cursor.execute(actual_query)
             
             # Convert results to dictionaries
             columns = [col[0] for col in self.cursor.description] if self.cursor.description else []
-            results = []
+            logger.debug("Query columns: %s", columns)
             
+            results = []
             for row in self.cursor.fetchall():
                 results.append({columns[i]: row[i] for i in range(len(columns))})
             
+            logger.info("Query executed successfully. Retrieved %d rows", len(results))
             return results
+            
         except sqlite3.Error as e:
-            print(f"Database error: {e}")
+            logger.error("Database error: %s", str(e))
+            logger.error("Failed query: %s", query)
+            if params:
+                logger.error("Failed query parameters: %s", params)
             return []
     
     def execute_explain(self, query: str) -> List[Dict[str, Any]]:
@@ -260,14 +297,14 @@ class Database:
         
         return False
 
-# Singleton instance for easy import
-db = Database()
-
 def get_database() -> Database:
     """
     Get the database instance.
+    Creates the instance on first call.
     
     Returns:
         Database instance
     """
-    return db
+    if not hasattr(get_database, 'db'):
+        get_database.db = Database()
+    return get_database.db

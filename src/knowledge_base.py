@@ -13,9 +13,16 @@ import json
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional, Any, Union
 import re
+import logging
 
 from .database import get_database
 from .embeddings import get_embedding_manager
+from .logging_config import register_logger
+
+# Register this module's logger
+LOGGER_NAME = 'knowledge_base'
+register_logger(LOGGER_NAME)
+logger = logging.getLogger(LOGGER_NAME)
 
 class KnowledgeBase:
     """
@@ -275,14 +282,14 @@ class KnowledgeBase:
         
         return "\n".join(formatted)
 
-# Singleton instance for easy import
-knowledge_base = KnowledgeBase()
-
 def get_knowledge_base() -> KnowledgeBase:
     """
     Get the knowledge base instance.
+    Creates the instance on first call.
     
     Returns:
         KnowledgeBase instance
     """
-    return knowledge_base
+    if not hasattr(get_knowledge_base, 'knowledge_base'):
+        get_knowledge_base.knowledge_base = KnowledgeBase()
+    return get_knowledge_base.knowledge_base
