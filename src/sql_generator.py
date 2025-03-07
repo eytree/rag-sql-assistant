@@ -12,10 +12,17 @@ RAG pipeline.
 from typing import Dict, List, Tuple, Optional, Any, Union
 import re
 import sqlite3
+import logging
 
 from .knowledge_base import get_knowledge_base
 from .llm import get_llm
 from .database import get_database
+from .logging_config import register_logger
+
+# Register this module's logger
+LOGGER_NAME = 'sql_generator'
+register_logger(LOGGER_NAME)
+logger = logging.getLogger(LOGGER_NAME)
 
 class SQLGenerator:
     """
@@ -24,12 +31,14 @@ class SQLGenerator:
     
     def __init__(self):
         """Initialize the SQL Generator."""
+        logger.info("Initializing SQL Generator")
         self.knowledge_base = get_knowledge_base()
         self.llm = get_llm()
         self.db = get_database()
         
         # Ensure knowledge base is set up
         self.knowledge_base.setup()
+        logger.debug("SQL Generator initialized successfully")
     
     def generate_sql(self, query: str) -> Dict[str, Any]:
         """
@@ -41,16 +50,22 @@ class SQLGenerator:
         Returns:
             Dictionary with generated SQL, explanation, and performance info
         """
+        logger.info("Generating SQL for query: %s", query)
+        
         # Step 1: Retrieve relevant context from knowledge base
-        print(f"🔍 Retrieving context for query: '{query}'")
+        logger.info("Step 1: Retrieving context")
         context = self.knowledge_base.retrieve_context(query)
+        logger.debug("Retrieved context: %s", context)
         
         # Step 2: Format context for prompt
+        logger.info("Step 2: Formatting context")
         formatted_context = self.knowledge_base.format_context_for_prompt(context)
+        logger.debug("Formatted context: %s", formatted_context)
         
         # Step 3: Generate SQL using LLM with RAG context
-        print("🧠 Generating SQL with RAG...")
+        logger.info("Step 3: Generating SQL with LLM")
         result = self.llm.generate_sql(query, formatted_context)
+        logger.debug("LLM result: %s", result)
         
         # Step 4: Analyze query performance
         sql_query = result["sql"]
@@ -58,10 +73,11 @@ class SQLGenerator:
         
         if sql_query:
             try:
-                print("⚙️ Analyzing query performance...")
+                logger.info("Step 4: Analyzing query performance")
                 performance_info = self.analyze_query(sql_query)
+                logger.debug("Performance analysis: %s", performance_info)
             except Exception as e:
-                print(f"Error analyzing query: {e}")
+                logger.error("Error analyzing query: %s", str(e))
                 performance_info = {"error": str(e)}
         
         # Combine results
@@ -71,6 +87,7 @@ class SQLGenerator:
             "performance_analysis": performance_info
         })
         
+        logger.info("SQL generation completed")
         return result
     
     def _summarize_context(self, context: Dict[str, Any]) -> Dict[str, Any]:
@@ -130,13 +147,11 @@ class SQLGenerator:
         Returns:
             Dictionary with query results and metadata
         """
+        logger.info("Executing query: %s", sql_query)
         try:
-            # Add LIMIT clause if not present
-            if "LIMIT" not in sql_query.upper():
-                sql_query = f"{sql_query} LIMIT {limit}"
-            
             # Execute query
             results = self.db.execute_query(sql_query)
+            logger.info("Query executed successfully. Retrieved %d rows", len(results))
             
             return {
                 "success": True,
@@ -145,20 +160,21 @@ class SQLGenerator:
                 "sql": sql_query
             }
         except sqlite3.Error as e:
+            logger.error("Error executing query: %s", str(e))
             return {
                 "success": False,
                 "error": str(e),
                 "sql": sql_query
             }
 
-# Singleton instance for easy import
-sql_generator = SQLGenerator()
-
 def get_sql_generator() -> SQLGenerator:
     """
     Get the SQL generator instance.
+    Creates the instance on first call.
     
     Returns:
         SQLGenerator instance
     """
-    return sql_generator
+    if not hasattr(get_sql_generator, 'sql_generator'):
+        get_sql_generator.sql_generator = SQLGenerator()
+    return get_sql_generator.sql_generator

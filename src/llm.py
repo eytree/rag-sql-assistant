@@ -14,7 +14,15 @@ import json
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional, Any, Union
 import re
+import logging
 from dotenv import load_dotenv
+
+from .logging_config import register_logger
+
+# Register this module's logger
+LOGGER_NAME = 'llm'
+register_logger(LOGGER_NAME)
+logger = logging.getLogger(LOGGER_NAME)
 
 # Import llama_cpp conditionally to avoid errors if not installed
 try:
@@ -217,14 +225,14 @@ SQL Query:
             "full_response": response
         }
 
-# Singleton instance for easy import
-llm = LocalLLM()
-
 def get_llm() -> LocalLLM:
     """
     Get the LLM instance.
+    Creates the instance on first call.
     
     Returns:
         LocalLLM instance
     """
-    return llm
+    if not hasattr(get_llm, 'llm'):
+        get_llm.llm = LocalLLM()
+    return get_llm.llm

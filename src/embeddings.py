@@ -17,6 +17,14 @@ import numpy as np
 from tqdm import tqdm
 from sentence_transformers import SentenceTransformer
 import faiss
+import logging
+
+from .logging_config import register_logger
+
+# Register this module's logger
+LOGGER_NAME = 'embeddings'
+register_logger(LOGGER_NAME)
+logger = logging.getLogger(LOGGER_NAME)
 
 # Paths
 EMBEDDINGS_DIR = Path("data/embeddings")
@@ -238,14 +246,14 @@ class EmbeddingManager:
         
         return results
 
-# Singleton instance for easy import
-embedding_manager = EmbeddingManager()
-
 def get_embedding_manager() -> EmbeddingManager:
     """
     Get the embedding manager instance.
+    Creates the instance on first call.
     
     Returns:
         EmbeddingManager instance
     """
-    return embedding_manager
+    if not hasattr(get_embedding_manager, 'embedding_manager'):
+        get_embedding_manager.embedding_manager = EmbeddingManager()
+    return get_embedding_manager.embedding_manager

@@ -31,6 +31,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from src.sql_generator import get_sql_generator
 from src.database import get_database
+from src.logging_config import LogLevel, setup_logging
 
 # Create Typer app
 app = typer.Typer(help="RAG-powered SQL Assistant")
@@ -109,6 +110,15 @@ def display_query_results(data):
         table.add_row(*[str(val) for val in row.values()])
     
     console.print(table)
+
+@app.callback()
+def main(log_level: LogLevel = typer.Option(
+    LogLevel.NONE,
+    "--log-level", "-l",
+    help="Set logging level (none, info, debug)"
+)):
+    """Initialize the application with optional logging level."""
+    setup_logging(log_level)
 
 @app.command()
 def generate(query: Optional[str] = typer.Argument(None, help="Natural language query")):
