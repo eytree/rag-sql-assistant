@@ -17,6 +17,7 @@ import logging
 from .database import get_database
 from .embeddings import get_embedding_manager
 from .logging_config import register_logger
+from .timing import get_timing_manager
 
 # Register this module's logger
 LOGGER_NAME = 'knowledge_base'
@@ -146,78 +147,78 @@ class KnowledgeBase:
         Returns:
             Dictionary with retrieved context
         """
-        # Initialize context
-        context = {
-            "tables": [],
-            "columns": [],
-            "relationships": [],
-            "similar_queries": [],
-            "performance_notes": []
-        }
+        timer = get_timing_manager().timer
         
-        # Extract mentioned entities
-        entities = self.extract_query_entities(query)
+        # Search for relevant schema elements
+        with timer("search_embeddings"):
+            results = self.embedding_manager.search(query, top_k=5)
         
-        # Get context for explicitly mentioned tables
-        for table_name in entities["tables"]:
-            table_info = self.db.get_table_schema(table_name)
-            if table_info:
-                context["tables"].append(table_info)
-                
-                # Add relationships for this table
-                relationships = self.db.get_table_relationships(table_name)
-                context["relationships"].extend(relationships)
+        # Extract relevant tables
+        tables = []
+        relationships = []
+        similar_queries = []
+        performance_notes = []
         
-        # Perform semantic search to find relevant schema elements
-        search_results = self.search(query)
-        
-        # Process search results
-        for result in search_results:
-            result_type = result.get("type")
-            
-            if result_type == "table" and not any(t["name"] == result["name"] for t in context["tables"]):
-                table_info = self.db.get_table_schema(result["name"])
-                if table_info:
-                    context["tables"].append(table_info)
-            
-            elif result_type == "column":
-                table_name = result.get("table")
-                column_name = result.get("name")
-                
-                # Check if we need to add the parent table
-                if not any(t["name"] == table_name for t in context["tables"]):
-                    table_info = self.db.get_table_schema(table_name)
+        with timer("process_search_results"):
+            for result in results:
+                if result["type"] == "table":
+                    # Get full table info
+                    table_info = self.db.get_table_schema(result["name"])
                     if table_info:
-                        context["tables"].append(table_info)
+                        tables.append(table_info)
+                        
+                        # Get relationships for this table
+                        table_rels = self.db.get_table_relationships(result["name"])
+                        relationships.extend(table_rels)
                 
-                # Add column info
-                context["columns"].append({
-                    "table": table_name,
-                    "name": column_name,
-                    "type": result.get("data_type"),
-                    "description": result.get("description")
-                })
-            
-            elif result_type == "relationship" and result not in context["relationships"]:
-                context["relationships"].append(result)
-            
-            elif result_type == "query":
-                context["similar_queries"].append({
-                    "name": result.get("name"),
-                    "description": result.get("description"),
-                    "sql": result.get("sql")
-                })
+                elif result["type"] == "column":
+                    # Get the table this column belongs to
+                    table_info = self.db.get_table_schema(result["table"])
+                    if table_info and table_info not in tables:
+                        tables.append(table_info)
+                        
+                        # Get relationships for this table
+                        table_rels = self.db.get_table_relationships(result["table"])
+                        relationships.extend(table_rels)
+                
+                elif result["type"] == "relationship":
+                    relationships.append({
+                        "from_table": result["from_table"],
+                        "from_column": result["from_column"],
+                        "to_table": result["to_table"],
+                        "to_column": result["to_column"],
+                        "relationship": result["relationship_type"],
+                        "description": result["description"]
+                    })
+                    
+                    # Get info for both tables in the relationship
+                    for table_name in [result["from_table"], result["to_table"]]:
+                        table_info = self.db.get_table_schema(table_name)
+                        if table_info and table_info not in tables:
+                            tables.append(table_info)
+                
+                elif result["type"] == "query":
+                    similar_queries.append({
+                        "name": result["name"],
+                        "description": result["description"],
+                        "sql": result["sql"]
+                    })
         
-        # Add relevant performance notes
-        if self.schema and "performance_notes" in self.schema:
-            # Find notes relevant to the tables in context
-            for note in self.schema["performance_notes"]:
-                for table in context["tables"]:
-                    if table["name"].lower() in note.lower():
-                        context["performance_notes"].append(note)
-                        break
+        # Deduplicate relationships
+        unique_relationships = []
+        seen = set()
+        for rel in relationships:
+            key = f"{rel['from_table']}.{rel['from_column']}->{rel['to_table']}.{rel['to_column']}"
+            if key not in seen:
+                seen.add(key)
+                unique_relationships.append(rel)
         
-        return context
+        return {
+            "tables": tables,
+            "relationships": unique_relationships,
+            "similar_queries": similar_queries,
+            "performance_notes": performance_notes
+        }
     
     def format_context_for_prompt(self, context: Dict[str, Any]) -> str:
         """

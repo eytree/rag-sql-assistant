@@ -17,6 +17,7 @@ from .knowledge_base import get_knowledge_base
 from .llm import get_llm
 from .database import get_database
 from .logging_config import register_logger
+from .timing import get_timing_manager
 
 # Register this module's logger
 LOGGER_NAME = 'sql_generator'
@@ -50,6 +51,11 @@ class SQLGenerator:
         Returns:
             Dictionary with generated SQL, explanation, and performance info
         """
+        timer = get_timing_manager().timer
+        
+        # Start timing this query
+        get_timing_manager().start_query(query)
+        
         logger.info("Generating SQL for query: %s", query)
         
         # Step 1: Retrieve relevant context from knowledge base
@@ -57,24 +63,27 @@ class SQLGenerator:
         if status_callback:
             status_callback(msg)
         logger.info(msg)
-        context = self.knowledge_base.retrieve_context(query)
-        logger.debug("Retrieved context: %s", context)
+        with timer("retrieve_context"):
+            context = self.knowledge_base.retrieve_context(query)
+            logger.debug("Retrieved context: %s", context)
         
         # Step 2: Format context for prompt
         msg = "Step 2: Formatting context for prompt..."
         if status_callback:
             status_callback(msg)
         logger.info(msg)
-        formatted_context = self.knowledge_base.format_context_for_prompt(context)
-        logger.debug("Formatted context: %s", formatted_context)
+        with timer("format_context"):
+            formatted_context = self.knowledge_base.format_context_for_prompt(context)
+            logger.debug("Formatted context: %s", formatted_context)
         
         # Step 3: Generate SQL using LLM with RAG context
         msg = "Step 3: Generating SQL with language model..."
         if status_callback:
             status_callback(msg)
         logger.info(msg)
-        result = self.llm.generate_sql(query, formatted_context)
-        logger.debug("LLM result: %s", result)
+        with timer("generate_sql_llm"):
+            result = self.llm.generate_sql(query, formatted_context)
+            logger.debug("LLM result: %s", result)
         
         # Step 4: Analyze query performance
         sql_query = result["sql"]
@@ -86,8 +95,9 @@ class SQLGenerator:
                 if status_callback:
                     status_callback(msg)
                 logger.info(msg)
-                performance_info = self.analyze_query(sql_query)
-                logger.debug("Performance analysis: %s", performance_info)
+                with timer("analyze_performance"):
+                    performance_info = self.analyze_query(sql_query)
+                    logger.debug("Performance analysis: %s", performance_info)
             except Exception as e:
                 logger.error("Error analyzing query: %s", str(e))
                 performance_info = {"error": str(e)}

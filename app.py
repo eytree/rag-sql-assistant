@@ -109,22 +109,38 @@ def display_query_results(data):
     console.print(table)
 
 @app.callback(invoke_without_command=True)
-def main(log_level: LogLevel = typer.Option(
-    LogLevel.NONE,
-    "--log-level", "-l",
-    help="Set logging level (none, info, debug)"
-)):
+def main(
+    ctx: typer.Context,
+    log_level: LogLevel = typer.Option(
+        LogLevel.NONE,
+        "--log-level", "-l",
+        help="Set logging level (none, info, debug)"
+    ),
+    timing: bool = typer.Option(
+        False,
+        "--timing",
+        help="Enable timing of operations"
+    ),
+    save_timing: bool = typer.Option(
+        False,
+        "--save-timing",
+        help="Save timing data to files (implies --timing)"
+    )
+):
     """Initialize the application with optional logging level."""
     setup_logging(log_level)
     
-    # Only initialize components if we're not just showing help
-    if len(sys.argv) > 1 and sys.argv[1] not in ["--help", "-h"]:
+    # Initialize timing if enabled
+    from src.timing import initialize_timing
+    initialize_timing(enabled=timing or save_timing, save_to_file=save_timing)
+    
+    # Check database unless just showing help
+    if not ctx.invoked_subcommand in [None, "help"]:
         check_database()
-        # If no command is provided, run interactive mode
+    
+    # Run interactive mode if no command was invoked
+    if ctx.invoked_subcommand is None:
         interactive()
-    else:
-        # Just show help and exit
-        app()
 
 @app.command()
 def generate(query: Optional[str] = typer.Argument(None, help="Natural language query")):
@@ -206,90 +222,94 @@ def info():
     # Initialize database connection
     db = get_database()
     
-    # Get all tables
-    tables = db.get_all_tables()
-    
-    # Create table for display
-    table = Table(show_header=True, header_style="bold magenta")
-    table.add_column("Table Name")
-    table.add_column("Description")
-    table.add_column("Columns")
-    
-    for table_info in tables:
-        columns = [col["name"] for col in table_info["columns"]]
-        table.add_row(
-            table_info["name"],
-            table_info.get("description", ""),
-            ", ".join(columns)
-        )
-    
-    console.print("[bold]Database Schema:[/bold]")
-    console.print(table)
-    
-    # Ask if user wants to see detailed info for a specific table
-    show_details = Prompt.ask(
-        "\n[bold]Would you like to see detailed information for a specific table?[/bold]",
-        choices=["y", "n"],
-        default="y"
-    )
-    
-    if show_details.lower() == "y":
-        table_name = Prompt.ask(
-            "[bold]Enter table name[/bold]",
-            choices=[t["name"] for t in tables]
+    try:
+        # Get all tables
+        tables = db.get_all_tables()
+        
+        # Create table for display
+        table = Table(show_header=True, header_style="bold magenta")
+        table.add_column("Table Name")
+        table.add_column("Description")
+        table.add_column("Columns")
+        
+        for table_info in tables:
+            columns = [col["name"] for col in table_info["columns"]]
+            table.add_row(
+                table_info["name"],
+                table_info.get("description", ""),
+                ", ".join(columns)
+            )
+        
+        console.print("[bold]Database Schema:[/bold]")
+        console.print(table)
+        
+        # Ask if user wants to see detailed info for a specific table
+        show_details = Prompt.ask(
+            "\n[bold]Would you like to see detailed information for a specific table?[/bold]",
+            choices=["y", "n"],
+            default="y"
         )
         
-        # Get table info
-        table_info = db.get_table_schema(table_name)
-        
-        if table_info:
-            console.print(f"\n[bold]Table:[/bold] {table_info['name']}")
-            console.print(f"[bold]Description:[/bold] {table_info.get('description', '')}\n")
+        if show_details.lower() == "y":
+            table_name = Prompt.ask(
+                "[bold]Enter table name[/bold]",
+                choices=[t["name"] for t in tables]
+            )
             
-            # Display columns
-            columns_table = Table(title=f"Columns in {table_info['name']}")
-            columns_table.add_column("Column Name", style="cyan")
-            columns_table.add_column("Type", style="yellow")
-            columns_table.add_column("Constraints", style="green")
-            columns_table.add_column("Description", style="magenta")
+            # Get table info
+            table_info = db.get_table_schema(table_name)
             
-            for column in table_info["columns"]:
-                columns_table.add_row(
-                    column["name"],
-                    column["type"],
-                    column.get("constraints", ""),
-                    column.get("description", "")
-                )
-            
-            console.print(columns_table)
-            
-            # Display indexes
-            if "indexes" in table_info and table_info["indexes"]:
-                indexes_table = Table(title=f"Indexes in {table_info['name']}")
-                indexes_table.add_column("Index Name", style="cyan")
-                indexes_table.add_column("Columns", style="yellow")
-                indexes_table.add_column("Unique", style="green")
+            if table_info:
+                console.print(f"\n[bold]Table:[/bold] {table_info['name']}")
+                console.print(f"[bold]Description:[/bold] {table_info.get('description', '')}\n")
                 
-                for idx in table_info["indexes"]:
-                    indexes_table.add_row(
-                        idx["name"],
-                        ", ".join(idx["columns"]),
-                        "Yes" if idx.get("unique", False) else "No"
+                # Display columns
+                columns_table = Table(title=f"Columns in {table_info['name']}")
+                columns_table.add_column("Column Name", style="cyan")
+                columns_table.add_column("Type", style="yellow")
+                columns_table.add_column("Constraints", style="green")
+                columns_table.add_column("Description", style="magenta")
+                
+                for column in table_info["columns"]:
+                    columns_table.add_row(
+                        column["name"],
+                        column["type"],
+                        column.get("constraints", ""),
+                        column.get("description", "")
                     )
                 
-                console.print(indexes_table)
-            
-            # Display relationships
-            relationships = db.get_table_relationships(table_name)
-            
-            if relationships:
-                console.print(f"\n[bold]Relationships for {table_name}:[/bold]")
+                console.print(columns_table)
                 
-                for rel in relationships:
-                    if rel["from_table"] == table_name:
-                        console.print(f"→ {rel['relationship']}: {rel['from_table']}.{rel['from_column']} to {rel['to_table']}.{rel['to_column']}")
-                    else:
-                        console.print(f"← {rel['relationship']}: {rel['to_table']}.{rel['to_column']} from {rel['from_table']}.{rel['from_column']}")
+                # Display indexes
+                if "indexes" in table_info and table_info["indexes"]:
+                    indexes_table = Table(title=f"Indexes in {table_info['name']}")
+                    indexes_table.add_column("Index Name", style="cyan")
+                    indexes_table.add_column("Columns", style="yellow")
+                    indexes_table.add_column("Unique", style="green")
+                    
+                    for idx in table_info["indexes"]:
+                        indexes_table.add_row(
+                            idx["name"],
+                            ", ".join(idx["columns"]),
+                            "Yes" if idx.get("unique", False) else "No"
+                        )
+                    
+                    console.print(indexes_table)
+                
+                # Display relationships
+                relationships = db.get_table_relationships(table_name)
+                
+                if relationships:
+                    console.print(f"\n[bold]Relationships for {table_name}:[/bold]")
+                    
+                    for rel in relationships:
+                        if rel["from_table"] == table_name:
+                            console.print(f"→ {rel['relationship']}: {rel['from_table']}.{rel['from_column']} to {rel['to_table']}.{rel['to_column']}")
+                        else:
+                            console.print(f"← {rel['relationship']}: {rel['to_table']}.{rel['to_column']} from {rel['from_table']}.{rel['from_column']}")
+    except Exception as e:
+        console.print(f"[bold red]Error displaying database info:[/bold red] {e}")
+        sys.exit(1)
 
 if __name__ == "__main__":
     try:

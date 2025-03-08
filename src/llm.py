@@ -204,18 +204,24 @@ SQL Query:
         Returns:
             Dictionary with generated SQL and explanations
         """
-        prompt = self.create_sql_prompt(query, context)
+        from .timing import get_timing_manager
+        timer = get_timing_manager().timer
+        
+        with timer("create_prompt"):
+            prompt = self.create_sql_prompt(query, context)
         
         # Generate response
-        response = self.generate(
-            prompt=prompt,
-            max_tokens=1024,
-            temperature=0.1,
-            stop=["User question:"]
-        )
+        with timer("llm_generate"):
+            response = self.generate(
+                prompt=prompt,
+                max_tokens=1024,
+                temperature=0.1,
+                stop=["User question:"]
+            )
         
         # Extract SQL and explanations
-        sql_query, explanation, performance_notes = self.extract_sql_from_response(response)
+        with timer("extract_response"):
+            sql_query, explanation, performance_notes = self.extract_sql_from_response(response)
         
         return {
             "sql": sql_query,
