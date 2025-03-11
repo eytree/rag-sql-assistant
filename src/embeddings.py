@@ -47,10 +47,13 @@ class EmbeddingManager:
         # Check if embeddings already exist
         self.embedding_file = EMBEDDINGS_DIR / f"schema_embeddings_{model_name.replace('/', '_')}.npz"
         self.mapping_file = EMBEDDINGS_DIR / f"schema_mapping_{model_name.replace('/', '_')}.json"
-        
-        # Load existing embeddings if available
-        if self.embedding_file.exists() and self.mapping_file.exists():
-            self._load_embeddings()
+        self.schema_hash_file = EMBEDDINGS_DIR / f"schema_hash_{model_name.replace('/', '_')}.txt"
+    
+    def _compute_schema_hash(self, schema_data: Dict[str, Any]) -> str:
+        """Compute a hash of the schema to detect changes"""
+        import hashlib
+        schema_str = json.dumps(schema_data, sort_keys=True)
+        return hashlib.sha256(schema_str.encode()).hexdigest()
     
     def _load_model(self):
         """Load the embedding model if not already loaded"""
@@ -60,25 +63,50 @@ class EmbeddingManager:
             from sentence_transformers import SentenceTransformer
             self.model = SentenceTransformer(self.model_name)
     
-    def _load_embeddings(self):
-        """Load existing embeddings from disk"""
-        print(f"Loading existing embeddings from {self.embedding_file}")
+    def _load_embeddings(self, schema_data: Dict[str, Any] = None) -> bool:
+        """
+        Load existing embeddings from disk if they match the schema.
         
-        # Import here to avoid loading numpy on startup
-        import numpy as np
-        
-        # Load the embeddings
-        loaded = np.load(self.embedding_file)
-        embeddings = loaded["embeddings"]
-        
-        # Load the mapping file
-        with open(self.mapping_file, "r") as f:
-            data = json.load(f)
-            self.embedding_map = data["mapping"]
-            self.texts = data["texts"]
-        
-        # Create FAISS index
-        self._create_index(embeddings)
+        Args:
+            schema_data: Current schema data to check against cache
+            
+        Returns:
+            True if embeddings were loaded successfully
+        """
+        try:
+            # Check if schema has changed (if schema_data provided)
+            if schema_data and self.schema_hash_file.exists():
+                with open(self.schema_hash_file, "r") as f:
+                    cached_hash = f.read().strip()
+                current_hash = self._compute_schema_hash(schema_data)
+                if cached_hash != current_hash:
+                    logger.info("Schema has changed, regenerating embeddings")
+                    return False
+            
+            print(f"Loading cached embeddings from {self.embedding_file}")
+            
+            # Import here to avoid loading numpy on startup
+            import numpy as np
+            
+            # Load the embeddings
+            loaded = np.load(self.embedding_file)
+            embeddings = loaded["embeddings"]
+            
+            # Load the mapping file
+            with open(self.mapping_file, "r") as f:
+                data = json.load(f)
+                self.embedding_map = data["mapping"]
+                self.texts = data["texts"]
+            
+            # Create FAISS index
+            self._create_index(embeddings)
+            
+            logger.info("Successfully loaded cached embeddings")
+            return True
+            
+        except Exception as e:
+            logger.warning(f"Failed to load cached embeddings: {e}")
+            return False
     
     def _create_index(self, embeddings):
         """
@@ -89,6 +117,7 @@ class EmbeddingManager:
         """
         # Import here to avoid loading numpy and faiss on startup
         import faiss
+        import numpy as np
         
         embedding_dimension = embeddings.shape[1]
         
@@ -96,7 +125,6 @@ class EmbeddingManager:
         self.index = faiss.IndexFlatL2(embedding_dimension)
         
         # Add the embeddings to the index
-        import numpy as np
         self.index.add(embeddings.astype(np.float32))
     
     def generate_schema_embeddings(self, schema_data: Dict[str, Any]):
@@ -106,6 +134,10 @@ class EmbeddingManager:
         Args:
             schema_data: Database schema information
         """
+        # Try to load cached embeddings first
+        if self.embedding_file.exists() and self.mapping_file.exists():
+            if self._load_embeddings(schema_data):
+                return
         
         self._load_model()
         
@@ -190,16 +222,17 @@ class EmbeddingManager:
         self._create_index(embeddings)
         
         # Save to disk
-        self._save_embeddings(embeddings)
+        self._save_embeddings(embeddings, schema_data)
         
         print(f"Generated and saved embeddings for {len(texts)} schema elements")
     
-    def _save_embeddings(self, embeddings):
+    def _save_embeddings(self, embeddings, schema_data: Dict[str, Any] = None):
         """
         Save embeddings and mapping to disk.
         
         Args:
             embeddings: Numpy array of embeddings
+            schema_data: Schema data to save hash for
         """
         # Import here to avoid loading numpy on startup
         import numpy as np
@@ -217,6 +250,12 @@ class EmbeddingManager:
                 "mapping": self.embedding_map,
                 "texts": self.texts
             }, f, indent=2)
+        
+        # Save schema hash if provided
+        if schema_data:
+            schema_hash = self._compute_schema_hash(schema_data)
+            with open(self.schema_hash_file, "w") as f:
+                f.write(schema_hash)
     
     def search(self, query: str, top_k: int = 5) -> List[Dict[str, Any]]:
         """
