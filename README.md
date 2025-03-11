@@ -55,7 +55,9 @@ def retrieve_context(self, query: str) -> Dict[str, Any]:
 Handles vector embeddings for semantic search:
 - Uses SentenceTransformers for creating embeddings
 - Manages FAISS index for efficient similarity search
-- Persists embeddings to disk for reuse
+- Implements smart caching with schema hash validation
+- Only regenerates embeddings when schema changes
+- Persists embeddings and schema hash to disk for reuse
 
 Key methods:
 ```python
@@ -68,6 +70,17 @@ def search(self, query: str, top_k: int = 5) -> List[Dict[str, Any]]:
     
     # 3. Return relevant schema elements
     return results
+
+def generate_schema_embeddings(self, schema_data: Dict[str, Any]):
+    # 1. Check for cached embeddings
+    if self._load_embeddings(schema_data):
+        return  # Use cached embeddings if schema hasn't changed
+        
+    # 2. Generate new embeddings if needed
+    embeddings = self.model.encode(texts)
+    
+    # 3. Save embeddings and schema hash
+    self._save_embeddings(embeddings, schema_data)
 ```
 
 ### 3. Local LLM (`llm.py`)
